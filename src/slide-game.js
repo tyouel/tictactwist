@@ -2,7 +2,7 @@
 // slide-game.js — TicTacTwist game logic (shifts, rotations, isBoardFixed)
 // ============================================================
 
-import { getWinner, isDraw } from './game.js?v=20replay';
+import { getWinner, isDraw } from './game.js?v=21replay';
 
 // ── CW rotation map (relative coords: rx = col-1, ry = row-1) ──
 // (-1,-1)→(-1,0)  (0,-1)→(-1,-1)  (1,-1)→(0,-1)
