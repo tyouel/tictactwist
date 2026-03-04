@@ -201,9 +201,23 @@ function initHelpModal() {
     setTimeout(() => showBoardHint(), 400);
   }
 
+  function isMobileDevice() {
+    // Check for touch capability and mobile user agent
+    const isTouchDevice = () => {
+      return (('ontouchstart' in window) ||
+              (navigator.maxTouchPoints > 0) ||
+              (navigator.msMaxTouchPoints > 0));
+    };
+    
+    const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    return isTouchDevice() && isMobileUserAgent;
+  }
+
   function showBoardHint() {
     if (!boardHint) return;
     if (sessionStorage.getItem('tt_hint_shown')) return;
+    if (!isMobileDevice()) return; // Only show on mobile/tablet
     boardHint.setAttribute('aria-hidden', 'false');
     sessionStorage.setItem('tt_hint_shown', '1');
   }
