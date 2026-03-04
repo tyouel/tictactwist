@@ -2,13 +2,13 @@
 // slide-ai.js — AI for TicTacSlide variant
 // ============================================================
 
-import { nextPlayer } from './game.js?v=21replay';
+import { nextPlayer } from './game.js?v=22replay';
 import {
   cloneSlideState, piecesToBoard, getValidShifts, applyShift,
   applySlideMoveByIndex, getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=21replay';
-import { WINNING_LINES } from './game.js?v=21replay';
+} from './slide-game.js?v=22replay';
+import { WINNING_LINES } from './game.js?v=22replay';
 
 /**
  * Evaluate a board position for the AI player.

@@ -1,4 +1,4 @@
-import { init } from './ui.js?v=21replay';
+import { init } from './ui.js?v=22replay';
 document.addEventListener('DOMContentLoaded', init);
 
 // Auto-set controls height CSS var for responsive layout
