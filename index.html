@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>TicTacTwist</title>
+  <link rel="stylesheet" href="src/styles.css?v=19replay" />
+</head>
+<body>
+  <div class="app">
+    <h1>TicTacTwist</h1>
+
+    <!-- Scoreboard -->
+    <div class="panel">
+      <div class="scoreboard">
+        <div class="score-item">
+          <span class="score-label score-label-x">X Wins</span>
+          <span class="score-value score-value-x" id="score-x">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-label score-label-draw">Draws</span>
+          <span class="score-value" id="score-draw">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-label score-label-o">O Wins</span>
+          <span class="score-value score-value-o" id="score-o">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status & Phase -->
+    <div class="status" id="status" aria-live="polite">X's turn</div>
+
+    <div class="phase-indicator hidden" id="phase-indicator">
+      <span id="phase-text">Shift phase — slide the board or skip</span>
+    </div>
+
+    <!-- Board + Hint Row -->
+    <div class="game-row" id="game-row">
+    <!-- Board Area -->
+    <div class="board-area" id="board-area">
+      <!-- Shift Controls (Slide mode only) -->
+      <div class="shift-controls hidden" id="shift-controls">
+        <button class="shift-btn shift-pos-tl" data-dx="-1" data-dy="-1" title="Shift up-left" aria-label="Shift up-left">↖</button>
+        <button class="shift-btn shift-pos-t"  data-dx="0"  data-dy="-1" title="Shift up" aria-label="Shift up">↑</button>
+        <button class="shift-btn shift-pos-tr" data-dx="1"  data-dy="-1" title="Shift up-right" aria-label="Shift up-right">↗</button>
+        <button class="shift-btn shift-pos-l"  data-dx="-1" data-dy="0"  title="Shift left" aria-label="Shift left">←</button>
+        <button class="shift-btn shift-pos-r"  data-dx="1"  data-dy="0"  title="Shift right" aria-label="Shift right">→</button>
+        <button class="shift-btn shift-pos-bl" data-dx="-1" data-dy="1"  title="Shift down-left" aria-label="Shift down-left">↙</button>
+        <button class="shift-btn shift-pos-b"  data-dx="0"  data-dy="1"  title="Shift down" aria-label="Shift down">↓</button>
+        <button class="shift-btn shift-pos-br" data-dx="1"  data-dy="1"  title="Shift down-right" aria-label="Shift down-right">↘</button>
+        <button class="btn-rotate rotate-pos-l" id="rotate-ccw-btn" title="Rotate 45° counter-clockwise" aria-label="Rotate 45° counter-clockwise">↺ 45°</button>
+        <button class="btn-rotate rotate-pos-r" id="rotate-cw-btn" title="Rotate 45° clockwise" aria-label="Rotate 45° clockwise">↻ 45°</button>
+      </div>
+
+      <div class="board-container">
+        <div class="board-wrapper">
+          <div class="board" id="board" role="grid" aria-label="Tic-Tac-Toe board"></div>
+          <div class="pieces-layer" id="pieces-layer"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Hint Slot (right of board) -->
+    <div class="hint-slot" id="hint-slot"></div>
+    </div>
+
+    <!-- Shift Extras (below board) -->
+    <div class="shift-extras hidden" id="shift-extras">
+      <button class="btn btn-sm btn-secondary" id="shift-reset-btn" disabled>Reset</button>
+    </div>
+
+    <!-- Result Area -->
+    <div class="result hidden" id="result">
+      <button class="btn" id="replay-btn" title="Replay the game move by move">Replay</button>
+      <button class="btn" id="new-game-btn">Play Again</button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="panel">
+      <div class="settings-row">
+        <div class="setting-group">
+          <label for="variant">Variant</label>
+          <select id="variant">
+            <option value="classic">Classic</option>
+            <option value="slide">TicTacTwist</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="hvh">Human vs Human</option>
+            <option value="hvai">Human vs AI</option>
+            <option value="aivh">AI vs Human</option>
+            <option value="aivai">AI vs AI</option>
+          </select>
+        </div>
+
+        <div class="setting-group" id="difficulty-group">
+          <label for="difficulty">Difficulty</label>
+          <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard" selected>Hard</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="controls" style="margin-top: 0.75rem;">
+        <button class="btn btn-sm" id="new-game-btn-2" title="New Game (R)">New Game</button>
+        <button class="btn btn-sm btn-hint" id="hint-btn" disabled title="Get a Hint (H)">Hint</button>
+        <button class="btn btn-sm btn-secondary" id="replay-btn-2" disabled title="Replay last game">Replay</button>
+        <button class="btn btn-sm btn-secondary" id="reset-score-btn">Reset Score</button>
+      </div>
+    </div>
+
+    <div style="text-align: center; font-size: 0.7rem; color: #64748B; margin-top: 0.5rem;">
+      <kbd>R</kbd> restart &nbsp; <kbd>H</kbd> hint
+    </div>
+
+    <!-- Screen reader live region -->
+    <div aria-live="assertive" class="sr-only" id="sr-announce"></div>
+  </div>
+
+  <script type="module" src="src/main.js?v=19replay"></script>
+</body>
+</html>
