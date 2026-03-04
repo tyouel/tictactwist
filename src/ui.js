@@ -3,17 +3,17 @@
 //         replay system for TicTacTwist
 // ============================================================
 
-import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=22replay';
-import { getAIMove } from './ai.js?v=22replay';
+import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=23replay';
+import { getAIMove } from './ai.js?v=23replay';
 import {
   createSlideState, cloneSlideState, piecesToBoard,
   isValidShift, getValidShifts, applyShift,
   applySlideMove, applySlideMoveByIndex,
   getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=22replay';
-import { getSlideAIMove } from './slide-ai.js?v=22replay';
-import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=22replay';
+} from './slide-game.js?v=23replay';
+import { getSlideAIMove } from './slide-ai.js?v=23replay';
+import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=23replay';
 
 // ── Module State ───────────────────────────────────────────
 let board = createBoard();
