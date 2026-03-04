@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>TicTacTwist</title>
-  <link rel="stylesheet" href="src/styles.css?v=19replay" />
+  <link rel="stylesheet" href="src/styles.css?v=20replay" />
 </head>
 <body>
   <div class="app">
@@ -126,6 +126,40 @@
     <div aria-live="assertive" class="sr-only" id="sr-announce"></div>
   </div>
 
-  <script type="module" src="src/main.js?v=19replay"></script>
+  <!-- Help / Instructions modal -->
+  <div id="helpModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="helpTitle">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content" role="document">
+      <button class="modal-close" data-close aria-label="Close">×</button>
+      <h2 id="helpTitle">Welcome to TicTacTwist!</h2>
+      <div class="modal-body">
+        <p><strong>How to play</strong>: Place your mark (X or O) to make 3 in a row — horizontally, vertically, or diagonally.</p>
+        <p><strong>The Twist</strong>: The board can slide and rotate! Rotate the board or slide rows/columns to change the game state — strategy + chaos!</p>
+        <p><strong>Controls</strong>: Tap a cell to place a mark. Use the rotate and slide controls (or gestures) to twist the board.</p>
+        <p class="fun">Tip: Think two moves ahead — your twist can turn your loss into a win!</p>
+        <hr>
+        <h3>Quick Moves & Rotation</h3>
+        <ul>
+          <li>Move: Drag a row/column handle or use the onscreen arrows to slide.</li>
+          <li>Rotate: Use the rotate buttons or two-finger rotate gesture on touch devices.</li>
+        </ul>
+        <p class="muted">You can open these instructions anytime with the Help button.</p>
+      </div>
+      <div class="modal-actions">
+        <button id="dontShowBtn" class="btn">Don't show again</button>
+        <button id="startBtn" class="btn btn-primary">Start Playing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Small board hint overlay -->
+  <div id="boardHint" class="board-hint" aria-hidden="true">
+    <div class="hint-inner">
+      <strong>Try this:</strong> Swipe a row to slide it. Two-finger rotate to spin the board.
+      <button class="btn btn-sm" id="hintGotIt">Got it</button>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js?v=20replay"></script>
 </body>
 </html>

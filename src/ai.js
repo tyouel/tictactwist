@@ -2,7 +2,7 @@
 // ai.js — AI opponents for Tic-Tac-Toe (2D Phase 1)
 // ============================================================
 
-import { getWinner, isDraw, applyMove, getValidMoves, nextPlayer } from './game.js?v=19replay';
+import { getWinner, isDraw, applyMove, getValidMoves, nextPlayer } from './game.js?v=20replay';
 
 /**
  * Easy AI: picks a random valid move.

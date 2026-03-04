@@ -3,17 +3,92 @@
 //         replay system for TicTacTwist
 // ============================================================
 
-import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=19replay';
-import { getAIMove } from './ai.js?v=19replay';
+// ── Help Modal Logic ───────────────────────────────────────
+(function initHelpModal(){
+  const STORAGE_KEY = 'tt_games_shown_v1';
+  const modal = document.getElementById('helpModal');
+  const helpBtn = document.getElementById('helpBtn') || document.querySelector('[id*="help"]') || createHelpButton();
+  const startBtn = document.getElementById('startBtn');
+  const dontShowBtn = document.getElementById('dontShowBtn');
+  const boardHint = document.getElementById('boardHint');
+  const hintGotIt = document.getElementById('hintGotIt');
+
+  function gamesShown() {
+    return parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+  }
+  function setGamesShown(n) {
+    localStorage.setItem(STORAGE_KEY, String(n));
+  }
+
+  function openModal() {
+    if (!modal) return;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal(increment = true) {
+    if (!modal) return;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    if (increment) {
+      const next = Math.min(99, gamesShown() + 1);
+      setGamesShown(next);
+    }
+    setTimeout(()=> showBoardHint(), 400);
+  }
+
+  function showBoardHint() {
+    if (!boardHint) return;
+    if (sessionStorage.getItem('tt_hint_shown')) return;
+    boardHint.setAttribute('aria-hidden', 'false');
+    sessionStorage.setItem('tt_hint_shown', '1');
+  }
+  function hideBoardHint() {
+    if (!boardHint) return;
+    boardHint.setAttribute('aria-hidden', 'true');
+  }
+
+  function createHelpButton() {
+    const btn = document.createElement('button');
+    btn.id = 'helpBtn';
+    btn.className = 'btn btn-help';
+    btn.textContent = 'Help';
+    btn.setAttribute('aria-controls', 'helpModal');
+    const controls = document.querySelector('.controls');
+    if (controls) controls.appendChild(btn);
+    return btn;
+  }
+
+  if (helpBtn) helpBtn.addEventListener('click', ()=> openModal());
+  if (startBtn) startBtn.addEventListener('click', ()=> closeModal(true));
+  if (dontShowBtn) dontShowBtn.addEventListener('click', ()=> { setGamesShown(99); closeModal(false); });
+  document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', ()=> closeModal(false)));
+  if (hintGotIt) hintGotIt.addEventListener('click', hideBoardHint);
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    setTimeout(()=>{
+      if (gamesShown() < 2) openModal();
+    }, 250);
+  });
+
+  window.tictactwist = window.tictactwist || {};
+  window.tictactwist.incrementGameInstructions = function(){
+    setGamesShown(Math.min(99, gamesShown() + 1));
+    if (gamesShown() < 2) openModal();
+  };
+  window.tictactwist.showInstructions = openModal;
+})();
+
+import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=20replay';
+import { getAIMove } from './ai.js?v=20replay';
 import {
   createSlideState, cloneSlideState, piecesToBoard,
   isValidShift, getValidShifts, applyShift,
   applySlideMove, applySlideMoveByIndex,
   getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=19replay';
-import { getSlideAIMove } from './slide-ai.js?v=19replay';
-import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=19replay';
+} from './slide-game.js?v=20replay';
+import { getSlideAIMove } from './slide-ai.js?v=20replay';
+import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=20replay';
 
 // ── Module State ───────────────────────────────────────────
 let board = createBoard();

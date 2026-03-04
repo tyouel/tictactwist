@@ -759,3 +759,28 @@ h1 {
     transition: none !important;
   }
 }
+
+/* ── Modal styles ──────────────────────────────────────── */
+.modal { display:none; position:fixed; inset:0; z-index:2000; align-items:center; justify-content:center; }
+.modal[aria-hidden="false"] { display:flex; }
+.modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.45); }
+.modal-content { position:relative; max-width:520px; width:clamp(300px,90vw,520px); margin:16px; background:#1E293B; border-radius:12px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,0.25); transform-origin:center; color: #E2E8F0; }
+.modal-close { position:absolute; top:8px; right:8px; background:none; border:none; font-size:22px; cursor:pointer; color: #E2E8F0; }
+.modal-body { margin-top:6px; line-height:1.4; }
+.modal-body h3 { margin-top:12px; margin-bottom:8px; font-size:1rem; }
+.modal-body ul { margin-left:20px; margin-top:8px; margin-bottom:8px; }
+.modal-body li { margin: 6px 0; }
+.modal-body hr { border:none; border-top:1px solid #334155; margin: 12px 0; }
+.modal-body .fun { color: #FBBF24; font-style:italic; }
+.modal-body .muted { color: #94A3B8; font-size:0.95rem; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+
+/* Board hint overlay */
+.board-hint { position:fixed; left:50%; transform:translateX(-50%); bottom: calc(var(--controls-height,64px) + 14px); z-index:2100; display:none; }
+.board-hint[aria-hidden="false"] { display:block; animation:hintIn 0.26s ease-out; }
+.hint-inner { background:rgba(0,0,0,0.85); color:#fff; padding:10px 14px; border-radius:10px; display:flex; gap:10px; align-items:center; max-width:92vw; font-size:14px; }
+
+/* Small button style */
+.btn-sm { padding:6px 8px; font-size:13px; }
+
+@keyframes hintIn { from { transform: translate(-50%, 8px) scale(.98); opacity:0 } to { transform: translate(-50%,0) scale(1); opacity:1 } }
