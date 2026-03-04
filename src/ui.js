@@ -1491,12 +1491,12 @@ async function showHint() {
     if (hintIndex === null || hintIndex === undefined) { clearHintPanel(); return; }
 
     const hasShift = result.shift && (result.shift.dx !== 0 || result.shift.dy !== 0);
-    const hasRotation = result.rotation && result.rotation !== 0;
+    const hasRotation = result.rotation && result.rotation !== 0 && result.rotation !== 4; // Skip 180° (symmetric)
 
     // Break rotation into individual 45° steps
     if (hasRotation) {
       let steps_count, dir;
-      if (result.rotation <= 4) {
+      if (result.rotation < 4) {
         steps_count = result.rotation;
         dir = 'cw';
       } else {
