@@ -4,12 +4,12 @@
 
 const SETTINGS_KEY = 'tictacted_settings';
 const SCORE_KEY_PREFIX = 'tictacted_score_';
-const SETTINGS_VERSION = 4; // bump to reset saved settings to new defaults
+const SETTINGS_VERSION = 5; // bump to reset saved settings to new defaults
 
 const DEFAULT_SETTINGS = {
   _version: SETTINGS_VERSION,
   variant: 'slide',      // 'classic' | 'slide'
-  mode: 'aivh',          // 'hvh' | 'hvai' | 'aivh' | 'aivai'
+  mode: 'hvai',          // 'hvh' | 'hvai' | 'aivh' | 'aivai'
   difficulty: 'easy',    // 'easy' | 'medium' | 'hard'
   difficulty2: 'easy',   // AI (O) difficulty for aivai mode
   startingPlayer: 'X',   // 'X' | 'O'
