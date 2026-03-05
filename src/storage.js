@@ -4,11 +4,14 @@
 
 const SETTINGS_KEY = 'tictacted_settings';
 const SCORE_KEY_PREFIX = 'tictacted_score_';
+const SETTINGS_VERSION = 4; // bump to reset saved settings to new defaults
 
 const DEFAULT_SETTINGS = {
-  variant: 'classic',    // 'classic' | 'slide'
-  mode: 'hvh',           // 'hvh' | 'hvai' | 'aivh' | 'aivai'
-  difficulty: 'hard',    // 'easy' | 'medium' | 'hard'
+  _version: SETTINGS_VERSION,
+  variant: 'slide',      // 'classic' | 'slide'
+  mode: 'aivh',          // 'hvh' | 'hvai' | 'aivh' | 'aivai'
+  difficulty: 'easy',    // 'easy' | 'medium' | 'hard'
+  difficulty2: 'easy',   // AI (O) difficulty for aivai mode
   startingPlayer: 'X',   // 'X' | 'O'
   soundEnabled: true,
 };
@@ -21,7 +24,15 @@ const DEFAULT_SCORE = { X: 0, O: 0, draws: 0 };
 export function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw);
+      // If saved settings are from an older version, discard them
+      if (saved._version !== SETTINGS_VERSION) {
+        localStorage.removeItem(SETTINGS_KEY);
+        return { ...DEFAULT_SETTINGS };
+      }
+      return { ...DEFAULT_SETTINGS, ...saved };
+    }
   } catch { /* ignore */ }
   return { ...DEFAULT_SETTINGS };
 }

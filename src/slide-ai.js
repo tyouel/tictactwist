@@ -2,13 +2,13 @@
 // slide-ai.js — AI for TicTacSlide variant
 // ============================================================
 
-import { nextPlayer } from './game.js?v=23replay';
+import { nextPlayer } from './game.js?v=36medfix';
 import {
   cloneSlideState, piecesToBoard, getValidShifts, applyShift,
   applySlideMoveByIndex, getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=23replay';
-import { WINNING_LINES } from './game.js?v=23replay';
+} from './slide-game.js?v=36medfix';
+import { WINNING_LINES } from './game.js?v=36medfix';
 
 /**
  * Evaluate a board position for the AI player.
@@ -79,7 +79,7 @@ function evaluateWithVulnerability(state, aiPlayer) {
 
 /**
  * Build the list of pre-placement transformations for a given state.
- * Full version: identity, shifts, multi-step rotations.
+ * Full version: identity, shifts, rotations, and rotation+shift combos.
  */
 function getTransformations(state, includeRotations) {
   const transforms = [];
@@ -94,7 +94,7 @@ function getTransformations(state, includeRotations) {
   // Identity
   transforms.push({ state, rotation: 0, shift: { dx: 0, dy: 0 } });
 
-  // Shifts
+  // Shifts only
   const shifts = getValidShifts(state);
   for (const shift of shifts) {
     const shifted = applyShift(state, shift.dx, shift.dy);
@@ -103,27 +103,43 @@ function getTransformations(state, includeRotations) {
     }
   }
 
-  // Multi-step rotations (mutually exclusive with shift)
+  // Rotations (and rotation+shift combos)
   if (includeRotations) {
+    const rotations = [];
+
     // CW: 1-4 steps
     let rState = state;
     for (let steps = 1; steps <= 4; steps++) {
       rState = applyRotation(rState, 'cw');
-      transforms.push({
-        state: cloneSlideState(rState),
-        rotation: steps,
-        shift: { dx: 0, dy: 0 },
-      });
+      rotations.push({ state: cloneSlideState(rState), rotation: steps });
     }
-    // CCW: 1-3 steps (4 CCW = 4 CW = 180°, already included)
+    // CCW: 1-3 steps
     rState = state;
     for (let steps = 1; steps <= 3; steps++) {
       rState = applyRotation(rState, 'ccw');
+      rotations.push({ state: cloneSlideState(rState), rotation: (8 - steps) % 8 || 8 });
+    }
+
+    for (const rot of rotations) {
+      // Rotation only
       transforms.push({
-        state: cloneSlideState(rState),
-        rotation: (8 - steps) % 8 || 8,  // 7 = 1 CCW, 6 = 2 CCW, 5 = 3 CCW
+        state: rot.state,
+        rotation: rot.rotation,
         shift: { dx: 0, dy: 0 },
       });
+
+      // Rotation + shift combos
+      const rotShifts = getValidShifts(rot.state);
+      for (const shift of rotShifts) {
+        const shifted = applyShift(rot.state, shift.dx, shift.dy);
+        if (shifted) {
+          transforms.push({
+            state: shifted,
+            rotation: rot.rotation,
+            shift,
+          });
+        }
+      }
     }
   }
 
@@ -257,33 +273,31 @@ function findForcedMovesForState(tState, aiPlayer) {
 export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
   const pieceCount = state.pieces.size;
 
-  // ── Opening book ─────────────────────────────────────────
-  if (pieceCount === 0 && difficulty !== 'easy') {
-    // Very first move (no transforms available): randomly pick center or a corner
+  // ── EASY: plays smart but no transforms ──────────────────
+  if (difficulty === 'easy') {
+    return getSlideAIMoveEasy(state, aiPlayer);
+  }
+
+  // ── MEDIUM: plays smart with one transform (single rotation OR single shift) ──
+  if (difficulty === 'medium') {
+    return getSlideAIMoveMedium(state, aiPlayer);
+  }
+
+  // ── HARD: full-strength with transforms ───────────────────
+
+  // Opening book (first move only — no pieces to transform)
+  if (pieceCount === 0) {
     const options = [4, 0, 2, 6, 8];
     return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: options[Math.floor(Math.random() * options.length)] };
   }
-  // pieceCount === 1: 2nd player now has transforms, fall through to full search
 
-  let maxDepth;
-  switch (difficulty) {
-    case 'easy':
-      maxDepth = 0;
-      break;
-    case 'medium':
-      maxDepth = 2;
-      break;
-    case 'hard':
-    default:
-      // Exact game-tree search: 9 - pieceCount
-      maxDepth = 9 - pieceCount;
-      break;
-  }
+  // No opening book for pieceCount === 1 — let transforms be considered
 
-  const includeRotations = difficulty !== 'easy';
-  const transforms = getTransformations(state, includeRotations);
+  const maxDepth = 9 - pieceCount;
 
-  // ── Fast-path: immediate win ──
+  const transforms = getTransformations(state, true);
+
+  // Fast-path: immediate win
   for (const t of transforms) {
     const { canWin } = findForcedMovesForState(t.state, aiPlayer);
     if (canWin !== null) {
@@ -291,7 +305,6 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
     }
   }
 
-  // Pre-transform heuristic baseline (for displacement tiebreaker)
   const preTransformEval = evaluateBoard(piecesToBoard(state), aiPlayer);
 
   let bestScore = -Infinity;
@@ -299,8 +312,6 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
 
   for (const t of transforms) {
     const placements = getValidPlacements(t.state);
-
-    // Displacement tiebreaker
     const postTransformEval = evaluateBoard(piecesToBoard(t.state), aiPlayer);
     const displacement = (postTransformEval - preTransformEval) * 0.1;
 
@@ -308,7 +319,6 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
       const next = applySlideMoveByIndex(t.state, idx, aiPlayer);
       if (!next) continue;
 
-      // Check immediate win (short-circuit minimax)
       const win = getSlideWinner(next);
       if (win && win.winner === aiPlayer) {
         return { rotation: t.rotation, shift: t.shift, placement: idx };
@@ -319,7 +329,6 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
         1, maxDepth, -Infinity, Infinity, false
       );
 
-      // Position-quality tiebreaker
       const posQuality = evaluateBoard(piecesToBoard(next), aiPlayer) * 0.001;
       const score = mmScore + displacement + posQuality;
 
@@ -328,7 +337,6 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
     }
   }
 
-  // Epsilon grouping + random selection
   const EPSILON = pieceCount >= 4 ? 0 : 0.5;
   const topCandidates = allCandidates.filter(c => c.score >= bestScore - EPSILON);
 
@@ -336,4 +344,179 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
   return pick
     ? { rotation: pick.rotation, shift: pick.shift, placement: pick.placement }
     : { rotation: 0, shift: { dx: 0, dy: 0 }, placement: 0 };
+}
+
+// ── Easy AI ────────────────────────────────────────────────
+// Plays just as smart as Hard but NEVER rotates or shifts the board.
+// Full minimax search, just limited to identity transform only.
+function getSlideAIMoveEasy(state, aiPlayer) {
+  const pieceCount = state.pieces.size;
+
+  // Opening: center or corner
+  if (pieceCount === 0) {
+    const options = [4, 0, 2, 6, 8];
+    return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: options[Math.floor(Math.random() * options.length)] };
+  }
+
+  // Response to first move: take center if open, else a corner
+  if (pieceCount === 1) {
+    const board = piecesToBoard(state);
+    if (board[4] === null) {
+      return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: 4 };
+    }
+    const corners = [0, 2, 6, 8].filter(i => board[i] === null);
+    if (corners.length > 0) {
+      return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: corners[Math.floor(Math.random() * corners.length)] };
+    }
+  }
+
+  const maxDepth = 9 - pieceCount;
+
+  // Identity only — no rotations, no shifts
+  const transforms = [{ state, rotation: 0, shift: { dx: 0, dy: 0 } }];
+
+  // Fast-path: immediate win
+  for (const t of transforms) {
+    const { canWin } = findForcedMovesForState(t.state, aiPlayer);
+    if (canWin !== null) {
+      return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: canWin };
+    }
+  }
+
+  let bestScore = -Infinity;
+  let allCandidates = [];
+
+  const placements = getValidPlacements(state);
+  for (const idx of placements) {
+    const next = applySlideMoveByIndex(state, idx, aiPlayer);
+    if (!next) continue;
+
+    const win = getSlideWinner(next);
+    if (win && win.winner === aiPlayer) {
+      return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: idx };
+    }
+
+    const mmScore = minimax(
+      next, aiPlayer, nextPlayer(aiPlayer),
+      1, maxDepth, -Infinity, Infinity, false
+    );
+
+    const posQuality = evaluateBoard(piecesToBoard(next), aiPlayer) * 0.001;
+    const score = mmScore + posQuality;
+
+    allCandidates.push({ score, placement: idx });
+    if (score > bestScore) bestScore = score;
+  }
+
+  const EPSILON = pieceCount >= 4 ? 0 : 0.5;
+  const topCandidates = allCandidates.filter(c => c.score >= bestScore - EPSILON);
+
+  const pick = topCandidates[Math.floor(Math.random() * topCandidates.length)];
+  return pick
+    ? { rotation: 0, shift: { dx: 0, dy: 0 }, placement: pick.placement }
+    : { rotation: 0, shift: { dx: 0, dy: 0 }, placement: 0 };
+}
+// ── Medium AI ──────────────────────────────────────────────
+// Plays smart (full minimax) but limited to ONE transform per turn:
+// either a single 45° rotation OR a single 1-cell shift. No combos.
+function getSlideAIMoveMedium(state, aiPlayer) {
+  const pieceCount = state.pieces.size;
+
+  // Opening: center or corner (no pieces to transform yet)
+  if (pieceCount === 0) {
+    const options = [4, 0, 2, 6, 8];
+    return { rotation: 0, shift: { dx: 0, dy: 0 }, placement: options[Math.floor(Math.random() * options.length)] };
+  }
+
+  // No opening book for pieceCount === 1 — let transforms be considered
+
+  const maxDepth = 9 - pieceCount;
+
+  // Medium transforms: identity + single shifts + single rotation CW/CCW
+  const transforms = getMediumTransformations(state);
+
+  // Fast-path: immediate win
+  for (const t of transforms) {
+    const { canWin } = findForcedMovesForState(t.state, aiPlayer);
+    if (canWin !== null) {
+      return { rotation: t.rotation, shift: t.shift, placement: canWin };
+    }
+  }
+
+  const preTransformEval = evaluateBoard(piecesToBoard(state), aiPlayer);
+
+  let bestScore = -Infinity;
+  let allCandidates = [];
+
+  for (const t of transforms) {
+    const placements = getValidPlacements(t.state);
+    const postTransformEval = evaluateBoard(piecesToBoard(t.state), aiPlayer);
+    const displacement = (postTransformEval - preTransformEval) * 0.1;
+
+    for (const idx of placements) {
+      const next = applySlideMoveByIndex(t.state, idx, aiPlayer);
+      if (!next) continue;
+
+      const win = getSlideWinner(next);
+      if (win && win.winner === aiPlayer) {
+        return { rotation: t.rotation, shift: t.shift, placement: idx };
+      }
+
+      const mmScore = minimax(
+        next, aiPlayer, nextPlayer(aiPlayer),
+        1, maxDepth, -Infinity, Infinity, false
+      );
+
+      const posQuality = evaluateBoard(piecesToBoard(next), aiPlayer) * 0.001;
+      const score = mmScore + displacement + posQuality;
+
+      allCandidates.push({ score, rotation: t.rotation, shift: t.shift, placement: idx });
+      if (score > bestScore) bestScore = score;
+    }
+  }
+
+  const EPSILON = pieceCount >= 4 ? 0 : 0.5;
+  const topCandidates = allCandidates.filter(c => c.score >= bestScore - EPSILON);
+
+  const pick = topCandidates[Math.floor(Math.random() * topCandidates.length)];
+  return pick
+    ? { rotation: pick.rotation, shift: pick.shift, placement: pick.placement }
+    : { rotation: 0, shift: { dx: 0, dy: 0 }, placement: 0 };
+}
+
+/**
+ * Medium-level transformations: identity + single shifts + single 45° CW/CCW.
+ * No multi-step rotations, no rotation+shift combos.
+ */
+function getMediumTransformations(state) {
+  const transforms = [];
+
+  // Transforms allowed on moves 2-4 (pieces.size 1-3)
+  const canTransform = state.pieces.size >= 1 && state.pieces.size <= 3;
+  if (!canTransform) {
+    transforms.push({ state, rotation: 0, shift: { dx: 0, dy: 0 } });
+    return transforms;
+  }
+
+  // Identity
+  transforms.push({ state, rotation: 0, shift: { dx: 0, dy: 0 } });
+
+  // Single shifts (8 directions)
+  const shifts = getValidShifts(state);
+  for (const shift of shifts) {
+    const shifted = applyShift(state, shift.dx, shift.dy);
+    if (shifted) {
+      transforms.push({ state: shifted, rotation: 0, shift });
+    }
+  }
+
+  // Single 45° CW rotation
+  const cw1 = applyRotation(state, 'cw');
+  transforms.push({ state: cw1, rotation: 1, shift: { dx: 0, dy: 0 } });
+
+  // Single 45° CCW rotation
+  const ccw1 = applyRotation(state, 'ccw');
+  transforms.push({ state: ccw1, rotation: 7, shift: { dx: 0, dy: 0 } });
+
+  return transforms;
 }

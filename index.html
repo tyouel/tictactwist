@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>TicTacTwist</title>
-  <link rel="stylesheet" href="src/styles.css?v=23replay" />
+  <link rel="stylesheet" href="src/styles.css?v=36medfix" />
 </head>
 <body>
   <div class="app">
@@ -85,7 +85,7 @@
           <label for="variant">Variant</label>
           <select id="variant">
             <option value="classic">Classic</option>
-            <option value="slide">TicTacTwist</option>
+            <option value="slide" selected>TicTacTwist</option>
           </select>
         </div>
 
@@ -94,17 +94,26 @@
           <select id="mode">
             <option value="hvh">Human vs Human</option>
             <option value="hvai">Human vs AI</option>
-            <option value="aivh">AI vs Human</option>
+            <option value="aivh" selected>AI vs Human</option>
             <option value="aivai">AI vs AI</option>
           </select>
         </div>
 
         <div class="setting-group" id="difficulty-group">
-          <label for="difficulty">Difficulty</label>
+          <label for="difficulty" id="difficulty-label">AI Difficulty</label>
           <select id="difficulty">
-            <option value="easy">Easy</option>
+            <option value="easy" selected>Easy</option>
             <option value="medium">Medium</option>
-            <option value="hard" selected>Hard</option>
+            <option value="hard">Expert</option>
+          </select>
+        </div>
+
+        <div class="setting-group hidden" id="difficulty2-group">
+          <label for="difficulty2">AI (O)</label>
+          <select id="difficulty2">
+            <option value="easy" selected>Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Expert</option>
           </select>
         </div>
 
@@ -114,52 +123,69 @@
         <button class="btn btn-sm" id="new-game-btn-2" title="New Game (R)">New Game</button>
         <button class="btn btn-sm btn-hint" id="hint-btn" disabled title="Get a Hint (H)">Hint</button>
         <button class="btn btn-sm btn-secondary" id="replay-btn-2" disabled title="Replay last game">Replay</button>
-        <button class="btn btn-sm btn-secondary" id="reset-score-btn">Reset Score</button>
+        <button class="btn btn-sm btn-secondary" id="reset-score-btn">Reset</button>
+        <button class="btn btn-sm btn-info" id="how-to-play-btn" title="How to Play">How to Play</button>
       </div>
     </div>
 
     <div style="text-align: center; font-size: 0.7rem; color: #64748B; margin-top: 0.5rem;">
-      <kbd>R</kbd> restart &nbsp; <kbd>H</kbd> hint
+      <kbd>R</kbd> restart &nbsp; <kbd>H</kbd> hint &nbsp; <a href="#" id="how-to-play-link" class="info-link">How to Play</a>
     </div>
 
     <!-- Screen reader live region -->
     <div aria-live="assertive" class="sr-only" id="sr-announce"></div>
   </div>
 
-  <!-- Help / Instructions modal -->
-  <div id="helpModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="helpTitle">
-    <div class="modal-backdrop" data-close></div>
-    <div class="modal-content" role="document">
-      <button class="modal-close" data-close aria-label="Close">×</button>
-      <h2 id="helpTitle">Welcome to TicTacTwist!</h2>
-      <div class="modal-body">
-        <p><strong>How to play</strong>: Place your mark (X or O) to make 3 in a row — horizontally, vertically, or diagonally.</p>
-        <p><strong>The Twist</strong>: The board can slide and rotate! Rotate the board or slide rows/columns to change the game state — strategy + chaos!</p>
-        <p><strong>Controls</strong>: Tap a cell to place a mark. Use the rotate and slide controls (or gestures) to twist the board.</p>
-        <p class="fun">Tip: Think two moves ahead — your twist can turn your loss into a win!</p>
-        <hr>
-        <h3>Quick Moves & Rotation</h3>
-        <ul>
-          <li>Move: Drag a row/column handle or use the onscreen arrows to slide.</li>
-          <li>Rotate: Use the rotate buttons or two-finger rotate gesture on touch devices.</li>
+  <!-- How to Play Modal -->
+  <div class="modal-overlay hidden" id="how-to-play-overlay">
+    <div class="modal" id="how-to-play-modal">
+      <button class="modal-close" id="modal-close-btn" title="Close">&times;</button>
+      <h2 class="modal-title">🎲 How to Play</h2>
+
+      <div class="modal-section">
+        <h3>Classic Mode</h3>
+        <p>Good ol' tic-tac-toe — three in a row wins. Simple. Timeless. You know the drill.</p>
+      </div>
+
+      <div class="modal-section">
+        <h3>⚡ TicTacTwist Mode</h3>
+        <p>This is where things get <em>wild</em>. Before you place your mark, you can <strong>twist the whole board</strong>!</p>
+        <ul class="modal-moves">
+          <li><span class="modal-icon modal-icon-rotate">↻ ↺</span> <strong>Rotate</strong> the board 45° left or right</li>
+          <li><span class="modal-icon modal-icon-shift">↑ ↓ ← →</span> <strong>Slide</strong> the entire board in any direction</li>
+          <li><span class="modal-icon modal-icon-place">✕ ○</span> Then <strong>place</strong> your mark</li>
         </ul>
-        <p class="muted">You can open these instructions anytime with the Help button.</p>
+        <p class="modal-callout">🧠 Transforms are available on moves 2–5 only — use them wisely!</p>
       </div>
-      <div class="modal-actions">
-        <button id="dontShowBtn" class="btn">Don't show again</button>
-        <button id="startBtn" class="btn btn-primary">Start Playing</button>
+
+      <div class="modal-section">
+        <h3>🎯 AI Difficulty</h3>
+        <ul class="modal-tips">
+          <li><strong>Easy</strong> — the AI plays smart but never rotates or slides the board</li>
+          <li><strong>Medium</strong> — the AI can use a single rotation (45°) or a single slide per turn</li>
+          <li><strong>Expert</strong> — the AI uses multiple rotations, slides, and combos to outsmart you</li>
+        </ul>
+      </div>
+
+      <div class="modal-section">
+        <h3>💡 Pro Tips</h3>
+        <ul class="modal-tips">
+          <li>Hit <kbd>H</kbd> anytime for a <strong>Hint</strong> — the AI will show you its best move</li>
+          <li>Stack multiple rotations and shifts before placing</li>
+          <li>Watch out — your opponent can twist the board too!</li>
+        </ul>
+      </div>
+
+      <div class="modal-footer">
+        <label class="modal-checkbox-label">
+          <input type="checkbox" id="dont-show-again" />
+          Don't show this again
+        </label>
+        <button class="btn modal-got-it" id="modal-got-it-btn">Let's Play! 🎯</button>
       </div>
     </div>
   </div>
 
-  <!-- Small board hint overlay -->
-  <div id="boardHint" class="board-hint" aria-hidden="true">
-    <div class="hint-inner">
-      <strong>Try this:</strong> Swipe a row to slide it. Two-finger rotate to spin the board.
-      <button class="btn btn-sm" id="hintGotIt">Got it</button>
-    </div>
-  </div>
-
-  <script type="module" src="src/main.js?v=23replay"></script>
+  <script type="module" src="src/main.js?v=36medfix"></script>
 </body>
 </html>

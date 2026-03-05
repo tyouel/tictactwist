@@ -2,7 +2,7 @@
 // ai.js — AI opponents for Tic-Tac-Toe (2D Phase 1)
 // ============================================================
 
-import { getWinner, isDraw, applyMove, getValidMoves, nextPlayer } from './game.js?v=23replay';
+import { getWinner, isDraw, applyMove, getValidMoves, nextPlayer } from './game.js?v=36medfix';
 
 /**
  * Easy AI: picks a random valid move.
@@ -60,6 +60,9 @@ export function aiMedium(board, aiPlayer) {
 export function aiHard(board, aiPlayer) {
   const opponent = nextPlayer(aiPlayer);
 
+  // Positional preference for tie-breaking: center > corners > edges
+  const POSITION_BONUS = [0.003, 0, 0.003, 0, 0.005, 0, 0.003, 0, 0.003];
+
   function minimax(board, isMaximizing, alpha, beta, depth) {
     const result = getWinner(board);
     if (result) {
@@ -99,7 +102,7 @@ export function aiHard(board, aiPlayer) {
 
   for (const move of moves) {
     const next = applyMove(board, move, aiPlayer);
-    const score = minimax(next, false, -Infinity, Infinity, 1);
+    const score = minimax(next, false, -Infinity, Infinity, 1) + POSITION_BONUS[move];
     if (score > bestScore) {
       bestScore = score;
       bestMoves = [move];

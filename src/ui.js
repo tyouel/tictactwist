@@ -3,17 +3,17 @@
 //         replay system for TicTacTwist
 // ============================================================
 
-import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=23replay';
-import { getAIMove } from './ai.js?v=23replay';
+import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=36medfix';
+import { getAIMove } from './ai.js?v=36medfix';
 import {
   createSlideState, cloneSlideState, piecesToBoard,
   isValidShift, getValidShifts, applyShift,
   applySlideMove, applySlideMoveByIndex,
   getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=23replay';
-import { getSlideAIMove } from './slide-ai.js?v=23replay';
-import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=23replay';
+} from './slide-game.js?v=36medfix';
+import { getSlideAIMove } from './slide-ai.js?v=36medfix';
+import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=36medfix';
 
 // ── Module State ───────────────────────────────────────────
 let board = createBoard();
@@ -65,11 +65,13 @@ let boardEl, boardWrapperEl, piecesLayerEl, statusEl, resultEl, phaseIndicatorEl
 let scoreXEl, scoreOEl, scoreDrawEl;
 let newGameBtn, newGameBtn2, replayBtn, replayBtn2, resetScoreBtn;
 let hintBtn;
-let variantSel, modeSel, difficultySel, difficultyGroup;
+let variantSel, modeSel, difficultySel, difficultyGroup, difficultyLabel;
+let difficulty2Sel, difficulty2Group;
 let shiftControlsEl, shiftExtrasEl, shiftResetBtn;
 let rotateCWBtn, rotateCCWBtn;
 let boardAreaEl;
 let srAnnounceEl;
+let howToPlayOverlay, howToPlayLink, howToPlayBtn, modalCloseBtn, modalGotItBtn, dontShowAgainCb;
 
 // ── Helpers ────────────────────────────────────────────────
 function isSlide() { return settings.variant === 'slide'; }
@@ -83,9 +85,26 @@ function isAITurn() {
   if (settings.mode === 'aivh') return currentPlayer === settings.startingPlayer;
   return settings.mode === 'hvai' && currentPlayer === getAIPlayer();
 }
+function getDifficultyFor(player) {
+  if (settings.mode === 'aivai') {
+    return player === 'X' ? settings.difficulty : (settings.difficulty2 || 'easy');
+  }
+  return settings.difficulty;
+}
 function currentBoard() { return isSlide() ? piecesToBoard(slideState) : board; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function prefersReducedMotion() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+function openHowToPlay() {
+  howToPlayOverlay.classList.remove('hidden');
+}
+
+function closeHowToPlay() {
+  if (dontShowAgainCb.checked) {
+    localStorage.setItem('ttt_hide_instructions', '1');
+  }
+  howToPlayOverlay.classList.add('hidden');
+}
 
 // ── Init ───────────────────────────────────────────────────
 export function init() {
@@ -108,7 +127,9 @@ export function init() {
   variantSel = document.getElementById('variant');
   modeSel = document.getElementById('mode');
   difficultySel = document.getElementById('difficulty');
-
+  difficultyLabel = document.getElementById('difficulty-label');
+  difficulty2Sel = document.getElementById('difficulty2');
+  difficulty2Group = document.getElementById('difficulty2-group');
   difficultyGroup = document.getElementById('difficulty-group');
   shiftControlsEl = document.getElementById('shift-controls');
   shiftExtrasEl = document.getElementById('shift-extras');
@@ -118,10 +139,19 @@ export function init() {
   boardAreaEl = document.getElementById('board-area');
   srAnnounceEl = document.getElementById('sr-announce');
 
+  // How to Play modal
+  howToPlayOverlay = document.getElementById('how-to-play-overlay');
+  howToPlayLink = document.getElementById('how-to-play-link');
+  howToPlayBtn = document.getElementById('how-to-play-btn');
+  modalCloseBtn = document.getElementById('modal-close-btn');
+  modalGotItBtn = document.getElementById('modal-got-it-btn');
+  dontShowAgainCb = document.getElementById('dont-show-again');
+
   // Apply saved settings
   variantSel.value = settings.variant;
   modeSel.value = settings.mode;
   difficultySel.value = settings.difficulty;
+  difficulty2Sel.value = settings.difficulty2 || 'easy';
   settings.startingPlayer = 'X';
 
   // Bind events
@@ -132,7 +162,7 @@ export function init() {
   resetScoreBtn.addEventListener('click', handleResetScore);
   hintBtn.addEventListener('click', showHint);
 
-  [variantSel, modeSel, difficultySel].forEach(el => {
+  [variantSel, modeSel, difficultySel, difficulty2Sel].forEach(el => {
     el.addEventListener('change', onSettingsChange);
   });
 
@@ -148,106 +178,29 @@ export function init() {
 
   document.addEventListener('keydown', onKeyDown);
 
+  // Re-render pieces on resize/orientation change so they stay centered
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => renderPieces(), 100);
+  });
+
+  // How to Play modal events
+  howToPlayLink.addEventListener('click', (e) => { e.preventDefault(); openHowToPlay(); });
+  howToPlayBtn.addEventListener('click', openHowToPlay);
+  modalCloseBtn.addEventListener('click', closeHowToPlay);
+  modalGotItBtn.addEventListener('click', closeHowToPlay);
+  howToPlayOverlay.addEventListener('click', (e) => {
+    if (e.target === howToPlayOverlay) closeHowToPlay();
+  });
+
   renderScore();
   newGame();
 
-  // ── Initialize Help Modal ──────────────────────────────────
-  initHelpModal();
-}
-
-// ── Help Modal Setup ───────────────────────────────────────
-function initHelpModal() {
-  const STORAGE_KEY = 'tt_games_shown_v1';
-  const modal = document.getElementById('helpModal');
-  const startBtn = document.getElementById('startBtn');
-  const dontShowBtn = document.getElementById('dontShowBtn');
-  const boardHint = document.getElementById('boardHint');
-  const hintGotIt = document.getElementById('hintGotIt');
-  let helpBtn = document.getElementById('helpBtn');
-
-  // Create help button if it doesn't exist
-  if (!helpBtn) {
-    helpBtn = document.createElement('button');
-    helpBtn.id = 'helpBtn';
-    helpBtn.className = 'btn btn-help';
-    helpBtn.textContent = 'Help';
-    helpBtn.setAttribute('aria-controls', 'helpModal');
-    const controls = document.querySelector('.controls');
-    if (controls) controls.appendChild(helpBtn);
+  // Show instructions on first visit
+  if (!localStorage.getItem('ttt_hide_instructions')) {
+    openHowToPlay();
   }
-
-  function gamesShown() {
-    return parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
-  }
-
-  function setGamesShown(n) {
-    localStorage.setItem(STORAGE_KEY, String(n));
-  }
-
-  function openModal() {
-    if (!modal) return;
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeModal(increment = true) {
-    if (!modal) return;
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-    if (increment) {
-      const next = Math.min(99, gamesShown() + 1);
-      setGamesShown(next);
-    }
-    setTimeout(() => showBoardHint(), 400);
-  }
-
-  function isMobileDevice() {
-    // Check for touch capability and mobile user agent
-    const isTouchDevice = () => {
-      return (('ontouchstart' in window) ||
-              (navigator.maxTouchPoints > 0) ||
-              (navigator.msMaxTouchPoints > 0));
-    };
-    
-    const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    return isTouchDevice() && isMobileUserAgent;
-  }
-
-  function showBoardHint() {
-    if (!boardHint) return;
-    if (sessionStorage.getItem('tt_hint_shown')) return;
-    if (!isMobileDevice()) return; // Only show on mobile/tablet
-    boardHint.setAttribute('aria-hidden', 'false');
-    sessionStorage.setItem('tt_hint_shown', '1');
-  }
-
-  function hideBoardHint() {
-    if (!boardHint) return;
-    boardHint.setAttribute('aria-hidden', 'true');
-  }
-
-  // Attach event listeners
-  if (helpBtn) helpBtn.addEventListener('click', () => openModal());
-  if (startBtn) startBtn.addEventListener('click', () => closeModal(true));
-  if (dontShowBtn) dontShowBtn.addEventListener('click', () => { setGamesShown(99); closeModal(false); });
-  document.querySelectorAll('[data-close]').forEach(el => {
-    el.addEventListener('click', () => closeModal(false));
-  });
-  if (hintGotIt) hintGotIt.addEventListener('click', hideBoardHint);
-
-  // Show modal for first two games
-  if (gamesShown() < 2) {
-    setTimeout(() => openModal(), 100);
-  }
-
-  // Expose to window for external calls
-  window.tictactwist = window.tictactwist || {};
-  window.tictactwist.incrementGameInstructions = function() {
-    setGamesShown(Math.min(99, gamesShown() + 1));
-    if (gamesShown() < 2) openModal();
-  };
-  window.tictactwist.showInstructions = openModal;
 }
 
 // ── Settings ───────────────────────────────────────────────
@@ -257,6 +210,7 @@ function onSettingsChange() {
   settings.variant = variantSel.value;
   settings.mode = modeSel.value;
   settings.difficulty = difficultySel.value;
+  settings.difficulty2 = difficulty2Sel.value;
   settings.startingPlayer = 'X';
   saveSettings(settings);
 
@@ -266,8 +220,13 @@ function onSettingsChange() {
   }
 
   // Difficulty visible for slide + (hvai, aivh, or aivai)
-  difficultyGroup.style.display =
-    ((settings.mode === 'hvai' || settings.mode === 'aivh' || settings.mode === 'aivai') && settings.variant === 'slide') ? '' : 'none';
+  const showDiff = (settings.mode === 'hvai' || settings.mode === 'aivh' || settings.mode === 'aivai') && settings.variant === 'slide';
+  difficultyGroup.style.display = showDiff ? '' : 'none';
+
+  // Second difficulty only for AI vs AI
+  const isAA = settings.mode === 'aivai';
+  difficulty2Group.classList.toggle('hidden', !isAA || !showDiff);
+  difficultyLabel.textContent = isAA ? 'AI (X)' : 'AI Difficulty';
 
   newGame();
 }
@@ -300,8 +259,11 @@ function newGame() {
   updateUndoRedoButtons();
 
   // Difficulty visibility
-  difficultyGroup.style.display =
-    ((settings.mode === 'hvai' || settings.mode === 'aivh' || settings.mode === 'aivai') && settings.variant === 'slide') ? '' : 'none';
+  const showDiff = (settings.mode === 'hvai' || settings.mode === 'aivh' || settings.mode === 'aivai') && settings.variant === 'slide';
+  difficultyGroup.style.display = showDiff ? '' : 'none';
+  const isAA = settings.mode === 'aivai';
+  difficulty2Group.classList.toggle('hidden', !isAA || !showDiff);
+  difficultyLabel.textContent = isAA ? 'AI (X)' : 'AI Difficulty';
 
   // AI goes first
   if (isAITurn()) {
@@ -464,8 +426,14 @@ function cellAriaLabel(index, b) {
 }
 
 // ── Visual Position Helpers ────────────────────────────────
+function getBoardSize() {
+  // Read actual rendered size of the board element
+  if (boardEl && boardEl.offsetWidth > 0) return boardEl.offsetWidth;
+  return 340; // fallback
+}
+
 function getCellRect(index) {
-  const boardSize = 340;
+  const boardSize = getBoardSize();
   const gap = 6;
   const cellSize = (boardSize - 2 * gap) / 3;
   const col = index % 3;
@@ -484,7 +452,7 @@ function getVisualCellPos(index) {
 }
 
 function getCellPx() {
-  const boardSize = 340;
+  const boardSize = getBoardSize();
   const gap = 6;
   return (boardSize - 2 * gap) / 3 + gap;
 }
@@ -807,6 +775,7 @@ async function doAIMove() {
 }
 
 async function doClassicAIMove(aiPlayer) {
+  // Classic mode: always play optimally (hard/minimax) regardless of difficulty setting
   const move = getAIMove(board, aiPlayer, 'hard');
   if (move === null || move === undefined) { isAnimating = false; return; }
 
@@ -825,7 +794,7 @@ async function doClassicAIMove(aiPlayer) {
 
 async function doSlideAIMove(aiPlayer) {
   const prevState = cloneSlideState(slideState);
-  const result = getSlideAIMove(slideState, aiPlayer, settings.difficulty);
+  const result = getSlideAIMove(slideState, aiPlayer, getDifficultyFor(aiPlayer));
 
   const { rotation, shift, placement } = result;
 
@@ -840,7 +809,7 @@ async function doSlideAIMove(aiPlayer) {
     // Snapshot before transforms
     const oldPositions = snapshotPiecePositions();
 
-    // Apply rotation to data
+    // Apply rotation to data — animate each 45° step individually
     if (hasRotation) {
       let steps, dir;
       if (rotation <= 4) {
@@ -851,18 +820,39 @@ async function doSlideAIMove(aiPlayer) {
         dir = 'ccw';
       }
 
+      const stepDeg = dir === 'cw' ? 45 : -45;
+      let totalDeg = 0;
+
       for (let i = 0; i < steps; i++) {
         workingState = applyRotation(workingState, dir);
+        totalDeg += stepDeg;
+        // Animate each 45° step separately so the player can follow
+        await animateBoardHuman(boardWrapperEl, `rotate(${totalDeg}deg)`, ANIM_DURATION_HUMAN);
+        await sleep(150); // brief pause between steps
       }
-
-      // Animate
-      const degrees = dir === 'cw' ? steps * 45 : -steps * 45;
-      await animateBoardHuman(boardWrapperEl, `rotate(${degrees}deg)`, ANIM_DURATION_HUMAN);
     }
 
     // Apply shift to data
     if (hasShift) {
       workingState = applyShift(workingState, shift.dx, shift.dy);
+
+      // If we already rotated, reset the visual first so shift is clear
+      if (hasRotation) {
+        // Snap board to post-rotation state before animating shift
+        slideState = cloneSlideState(workingState);
+        // Undo the shift from workingState temporarily to render the rotated-only state
+        // Actually: we need to render the rotated state, then animate the shift
+        // Re-snapshot from the rotated position
+        const rotatedOnly = applyShift(workingState, -shift.dx, -shift.dy) || workingState;
+        // Temporarily set slideState to pre-shift rotated state for rendering
+        const savedState = cloneSlideState(slideState);
+        slideState = rotatedOnly;
+        boardWrapperEl.style.transition = '';
+        boardWrapperEl.style.transform = '';
+        renderBoard();
+        await sleep(50);
+        slideState = savedState;
+      }
 
       // Visual direction is opposite of data
       const visDx = -shift.dx;
@@ -1146,6 +1136,14 @@ function updateReplayButton() {
 // ── Keyboard Shortcuts ─────────────────────────────────────
 function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey) return;
+
+  // Escape closes the how-to-play modal
+  if (e.key === 'Escape') {
+    if (!howToPlayOverlay.classList.contains('hidden')) {
+      closeHowToPlay();
+      return;
+    }
+  }
 
   if (e.key === 'R' || e.key === 'r') {
     handlePlayAgain();
@@ -1491,12 +1489,12 @@ async function showHint() {
     if (hintIndex === null || hintIndex === undefined) { clearHintPanel(); return; }
 
     const hasShift = result.shift && (result.shift.dx !== 0 || result.shift.dy !== 0);
-    const hasRotation = result.rotation && result.rotation !== 0 && result.rotation !== 4; // Skip 180° (symmetric)
+    const hasRotation = result.rotation && result.rotation !== 0;
 
     // Break rotation into individual 45° steps
     if (hasRotation) {
       let steps_count, dir;
-      if (result.rotation < 4) {
+      if (result.rotation <= 4) {
         steps_count = result.rotation;
         dir = 'cw';
       } else {

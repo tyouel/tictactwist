@@ -1,0 +1,13 @@
+{
+  "name": "tictacted",
+  "version": "1.0.0",
+  "description": "3D Tic-Tac-Toe game — Phase 1: Traditional 2D",
+  "scripts": {
+    "dev": "npx serve .",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": ["tic-tac-toe", "game"],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
