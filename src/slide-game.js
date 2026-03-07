@@ -2,7 +2,7 @@
 // slide-game.js — TicTacTwist game logic (shifts, rotations, isBoardFixed)
 // ============================================================
 
-import { getWinner, isDraw } from './game.js?v=36medfix';
+import { getWinner, isDraw, MAX_PIECES_PER_PLAYER } from './game.js?v=49sounds';
 
 // ── CW rotation map (relative coords: rx = col-1, ry = row-1) ──
 // (-1,-1)→(-1,0)  (0,-1)→(-1,-1)  (1,-1)→(0,-1)
@@ -22,12 +22,16 @@ for (const [from, to] of CW_MAP) {
 
 // ── State Operations ───────────────────────────────────────
 
-export function createSlideState() {
-  return { pieces: new Map() };
+export function createSlideState(vanish = false) {
+  return { pieces: new Map(), moveOrder: [], vanish };
 }
 
 export function cloneSlideState(state) {
-  return { pieces: new Map(state.pieces) };
+  return {
+    pieces: new Map(state.pieces),
+    moveOrder: state.moveOrder ? [...state.moveOrder] : [],
+    vanish: !!state.vanish
+  };
 }
 
 /**
@@ -71,11 +75,19 @@ export function getValidShifts(state) {
 export function applyShift(state, dx, dy) {
   if (!isValidShift(state, dx, dy)) return null;
   const newPieces = new Map();
+  const keyMap = new Map(); // oldKey -> newKey
   for (const [key, player] of state.pieces) {
     const [col, row] = key.split(',').map(Number);
-    newPieces.set(`${col + dx},${row + dy}`, player);
+    const newKey = `${col + dx},${row + dy}`;
+    newPieces.set(newKey, player);
+    keyMap.set(key, newKey);
   }
-  return { pieces: newPieces };
+  // Update moveOrder keys
+  const newOrder = (state.moveOrder || []).map(m => ({
+    key: keyMap.get(m.key) || m.key,
+    player: m.player
+  }));
+  return { pieces: newPieces, moveOrder: newOrder };
 }
 
 // ── Placement ──────────────────────────────────────────────
@@ -86,13 +98,74 @@ export function applySlideMove(state, col, row, player) {
   if (col < 0 || col > 2 || row < 0 || row > 2) return null;
   const newState = cloneSlideState(state);
   newState.pieces.set(key, player);
+  newState.moveOrder.push({ key, player });
+
+  // Auto-vanish if flag is set
+  if (newState.vanish) {
+    const playerMoves = newState.moveOrder.filter(m => m.player === player);
+    if (playerMoves.length > MAX_PIECES_PER_PLAYER) {
+      const oldest = playerMoves[0];
+      newState.pieces.delete(oldest.key);
+      const oldestIdx = newState.moveOrder.findIndex(
+        m => m.key === oldest.key && m.player === oldest.player
+      );
+      newState.moveOrder.splice(oldestIdx, 1);
+    }
+  }
+
   return newState;
+}
+
+/**
+ * Apply a slide placement with vanishing-pieces rule.
+ * Returns the removed cell index (for UI animation) in addition to the new state.
+ * @returns {{ state, removed: string|null }} or null if invalid.
+ */
+export function applySlideMoveVanish(state, col, row, player) {
+  const key = `${col},${row}`;
+  if (state.pieces.has(key)) return null;
+  if (col < 0 || col > 2 || row < 0 || row > 2) return null;
+  const newState = cloneSlideState(state);
+  newState.pieces.set(key, player);
+  newState.moveOrder.push({ key, player });
+
+  const playerMoves = newState.moveOrder.filter(m => m.player === player);
+  let removed = null;
+
+  if (playerMoves.length > MAX_PIECES_PER_PLAYER) {
+    const oldest = playerMoves[0];
+    newState.pieces.delete(oldest.key);
+    removed = oldest.key;
+    const oldestIdx = newState.moveOrder.findIndex(
+      m => m.key === oldest.key && m.player === oldest.player
+    );
+    newState.moveOrder.splice(oldestIdx, 1);
+  }
+
+  return { state: newState, removed };
 }
 
 export function applySlideMoveByIndex(state, index, player) {
   const col = index % 3;
   const row = Math.floor(index / 3);
   return applySlideMove(state, col, row, player);
+}
+
+/**
+ * Apply slide placement by index with vanishing-pieces rule.
+ * @returns {{ state, removed: number|null }} or null if invalid.
+ */
+export function applySlideMoveByIndexVanish(state, index, player) {
+  const col = index % 3;
+  const row = Math.floor(index / 3);
+  const result = applySlideMoveVanish(state, col, row, player);
+  if (!result) return null;
+  let removedIndex = null;
+  if (result.removed) {
+    const [rc, rr] = result.removed.split(',').map(Number);
+    removedIndex = rr * 3 + rc;
+  }
+  return { state: result.state, removed: removedIndex };
 }
 
 export function getValidPlacements(state) {
@@ -144,6 +217,7 @@ export function isBoardFixed(state) {
 export function applyRotation(state, direction) {
   const map = direction === 'cw' ? CW_MAP : CCW_MAP;
   const newPieces = new Map();
+  const keyMap = new Map(); // oldKey -> newKey
   for (const [key, player] of state.pieces) {
     const [col, row] = key.split(',').map(Number);
     // Convert to relative coords (center = 1,1)
@@ -153,11 +227,19 @@ export function applyRotation(state, direction) {
     const mapped = map.get(relKey);
     if (mapped) {
       const [nrx, nry] = mapped.split(',').map(Number);
-      newPieces.set(`${nrx + 1},${nry + 1}`, player);
+      const newKey = `${nrx + 1},${nry + 1}`;
+      newPieces.set(newKey, player);
+      keyMap.set(key, newKey);
     } else {
       // Shouldn't happen, but keep piece in place
       newPieces.set(key, player);
+      keyMap.set(key, key);
     }
   }
-  return { pieces: newPieces };
+  // Update moveOrder keys
+  const newOrder = (state.moveOrder || []).map(m => ({
+    key: keyMap.get(m.key) || m.key,
+    player: m.player
+  }));
+  return { pieces: newPieces, moveOrder: newOrder };
 }

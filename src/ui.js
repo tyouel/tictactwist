@@ -3,17 +3,82 @@
 //         replay system for TicTacTwist
 // ============================================================
 
-import { createBoard, getWinner, isDraw, applyMove, getValidMoves, nextPlayer, WINNING_LINES } from './game.js?v=36medfix';
-import { getAIMove } from './ai.js?v=36medfix';
+import { createBoard, getWinner, isDraw, applyMove, applyMoveVanish, getValidMoves, nextPlayer, WINNING_LINES, MAX_PIECES_PER_PLAYER } from './game.js?v=49sounds';
+import { getAIMove } from './ai.js?v=49sounds';
 import {
   createSlideState, cloneSlideState, piecesToBoard,
   isValidShift, getValidShifts, applyShift,
-  applySlideMove, applySlideMoveByIndex,
+  applySlideMove, applySlideMoveByIndex, applySlideMoveByIndexVanish,
   getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=36medfix';
-import { getSlideAIMove } from './slide-ai.js?v=36medfix';
-import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=36medfix';
+} from './slide-game.js?v=49sounds';
+import { getSlideAIMove } from './slide-ai.js?v=49sounds';
+import { loadSettings, saveSettings, loadScore, saveScore, resetScore } from './storage.js?v=49sounds';
+import { resumeAudio, setSoundEnabled, playPlace, playSlide, playRotate, playWin, playLose, playDraw, playVanish } from './sounds.js?v=49sounds';
+
+// ── Confetti Effect ────────────────────────────────────────
+function launchConfetti(durationMs = 3000) {
+  let canvas = document.getElementById('confetti-canvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'confetti-canvas';
+    document.body.appendChild(canvas);
+  }
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#F97316','#A3E635','#60A5FA','#F43F5E','#FBBF24','#A78BFA','#34D399','#FB923C'];
+  const NUM = 150;
+  const particles = [];
+
+  for (let i = 0; i < NUM; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 6 + 2,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * 3 + 2,
+      rot: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 10,
+      opacity: 1,
+    });
+  }
+
+  const start = performance.now();
+  function frame(now) {
+    const elapsed = now - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const fadeStart = durationMs * 0.7;
+    for (const p of particles) {
+      p.x += p.vx;
+      p.vy += 0.04;           // gravity
+      p.y += p.vy;
+      p.rot += p.rotSpeed;
+      if (elapsed > fadeStart) {
+        p.opacity = Math.max(0, 1 - (elapsed - fadeStart) / (durationMs - fadeStart));
+      }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rot * Math.PI) / 180);
+      ctx.globalAlpha = p.opacity;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+
+    if (elapsed < durationMs) {
+      requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.remove();
+    }
+  }
+  requestAnimationFrame(frame);
+}
 
 // ── Module State ───────────────────────────────────────────
 let board = createBoard();
@@ -37,6 +102,12 @@ let isAnimating = false;
 let pendingCellAnim = null;
 let visualRotationDeg = 0;
 let aivaiRunning = false;
+
+// Vanishing pieces (Expert mode)
+let classicMoveOrder = [];  // tracks placement order for Classic vanishing
+const VANISH_ANIM_MS = 500;
+const MAX_VANISH_TURNS = 50; // draw limit for vanishing mode
+let vanishTurnCount = 0;
 
 // ── Animation Constants ────────────────────────────────────
 const ANIM_DURATION_FAST = 380;
@@ -94,6 +165,7 @@ function getDifficultyFor(player) {
 function currentBoard() { return isSlide() ? piecesToBoard(slideState) : board; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function prefersReducedMotion() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+function isVanishMode() { return settings.difficulty === 'hard'; }
 
 function openHowToPlay() {
   howToPlayOverlay.classList.remove('hidden');
@@ -139,6 +211,16 @@ export function init() {
   boardAreaEl = document.getElementById('board-area');
   srAnnounceEl = document.getElementById('sr-announce');
 
+  // Sound toggle
+  const soundToggle = document.getElementById('sound-toggle');
+  soundToggle.checked = settings.soundEnabled !== false;
+  setSoundEnabled(soundToggle.checked);
+  soundToggle.addEventListener('change', () => {
+    settings.soundEnabled = soundToggle.checked;
+    setSoundEnabled(soundToggle.checked);
+    saveSettings(settings);
+  });
+
   // How to Play modal
   howToPlayOverlay = document.getElementById('how-to-play-overlay');
   howToPlayLink = document.getElementById('how-to-play-link');
@@ -177,6 +259,10 @@ export function init() {
   rotateCCWBtn.addEventListener('click', () => handleRotate('ccw'));
 
   document.addEventListener('keydown', onKeyDown);
+
+  // Resume audio context on first user interaction
+  document.addEventListener('click', resumeAudio, { once: true });
+  document.addEventListener('keydown', resumeAudio, { once: true });
 
   // Re-render pieces on resize/orientation change so they stay centered
   let resizeTimer;
@@ -234,7 +320,7 @@ function onSettingsChange() {
 // ── New Game ───────────────────────────────────────────────
 function newGame() {
   board = createBoard();
-  slideState = createSlideState();
+  slideState = createSlideState(isVanishMode());
   currentPlayer = settings.startingPlayer;
   gameOver = false;
   moveHistory = [];
@@ -247,6 +333,8 @@ function newGame() {
   accumulatedRotation = 0;
   preShiftState = null;
   pendingCellAnim = null;
+  classicMoveOrder = [];
+  vanishTurnCount = 0;
 
   // Reset board CSS
   boardWrapperEl.classList.remove('animating', 'human-move');
@@ -376,9 +464,32 @@ function renderBoard(migrations) {
   renderPieces(migrations);
 }
 
+function getOldestIndices() {
+  if (!isVanishMode() || gameOver) return new Set();
+  const oldest = new Set();
+  if (isSlide()) {
+    for (const p of ['X', 'O']) {
+      const moves = slideState.moveOrder.filter(m => m.player === p);
+      if (moves.length >= MAX_PIECES_PER_PLAYER) {
+        const [c, r] = moves[0].key.split(',').map(Number);
+        oldest.add(r * 3 + c);
+      }
+    }
+  } else {
+    for (const p of ['X', 'O']) {
+      const moves = classicMoveOrder.filter(m => m.player === p);
+      if (moves.length >= MAX_PIECES_PER_PLAYER) {
+        oldest.add(moves[0].index);
+      }
+    }
+  }
+  return oldest;
+}
+
 function renderPieces(migrations) {
   piecesLayerEl.innerHTML = '';
   const b = currentBoard();
+  const oldestSet = getOldestIndices();
 
   for (let i = 0; i < 9; i++) {
     if (!b[i]) continue;
@@ -390,6 +501,10 @@ function renderPieces(migrations) {
 
     if (winningLine && winningLine.includes(i)) {
       div.classList.add('piece-win');
+    }
+
+    if (oldestSet.has(i)) {
+      div.classList.add('piece-oldest');
     }
 
     const pos = getVisualCellPos(i);
@@ -531,6 +646,18 @@ function animatePieceDrop(cellIndex) {
   }
 }
 
+function animateGhostOut(cellIndex) {
+  if (cellIndex === null || cellIndex === undefined) return;
+  const markers = piecesLayerEl.querySelectorAll('.piece-marker');
+  for (const marker of markers) {
+    if (parseInt(marker.dataset.index) === cellIndex) {
+      marker.classList.add('piece-ghost');
+      setTimeout(() => marker.remove(), VANISH_ANIM_MS);
+      break;
+    }
+  }
+}
+
 function snapshotPiecePositions() {
   const b = currentBoard();
   const positions = new Map();
@@ -572,17 +699,33 @@ function handleCellClick(index) {
 }
 
 function handleClassicClick(index) {
-  const newBoard = applyMove(board, index, currentPlayer);
-  if (!newBoard) return;
+  let removedIndex = null;
+
+  if (isVanishMode()) {
+    const result = applyMoveVanish(board, index, currentPlayer, classicMoveOrder);
+    if (!result) return;
+    board = result.board;
+    classicMoveOrder = result.moveOrder;
+    removedIndex = result.removed;
+  } else {
+    const newBoard = applyMove(board, index, currentPlayer);
+    if (!newBoard) return;
+    board = newBoard;
+  }
 
   clearHintPanel();
-  board = newBoard;
-  moveHistory.push({ type: 'classic', index, player: currentPlayer });
+  moveHistory.push({ type: 'classic', index, player: currentPlayer, removed: removedIndex });
   redoStack = [];
+
+  if (removedIndex !== null) {
+    animateGhostOut(removedIndex);
+    playVanish();
+  }
 
   checkEndConditions();
   renderBoard();
   animatePieceDrop(index);
+  playPlace();
   renderStatus();
   updateSlideUI();
   updateUndoRedoButtons();
@@ -612,10 +755,18 @@ function handleSlidePlacement(index) {
   const savedPreShift = preShiftState ? cloneSlideState(preShiftState) : cloneSlideState(slideState);
   const transformedState = cloneSlideState(slideState);
 
-  const newState = applySlideMoveByIndex(slideState, index, currentPlayer);
-  if (!newState) return;
+  let removedIndex = null;
 
-  slideState = newState;
+  if (isVanishMode()) {
+    const result = applySlideMoveByIndexVanish(slideState, index, currentPlayer);
+    if (!result) return;
+    slideState = result.state;
+    removedIndex = result.removed;
+  } else {
+    const newState = applySlideMoveByIndex(slideState, index, currentPlayer);
+    if (!newState) return;
+    slideState = newState;
+  }
 
   moveHistory.push({
     type: 'slide',
@@ -624,7 +775,8 @@ function handleSlidePlacement(index) {
     transformedState,
     index,
     player: currentPlayer,
-    prevState: savedPreShift
+    prevState: savedPreShift,
+    removed: removedIndex
   });
   redoStack = [];
 
@@ -632,6 +784,11 @@ function handleSlidePlacement(index) {
   accumulatedShift = { dx: 0, dy: 0 };
   accumulatedRotation = 0;
   preShiftState = null;
+
+  if (removedIndex !== null) {
+    animateGhostOut(removedIndex);
+    playVanish();
+  }
 
   checkEndConditions();
 
@@ -641,6 +798,7 @@ function handleSlidePlacement(index) {
 
   renderBoard();
   animatePieceDrop(index);
+  playPlace();
   renderStatus();
   updateSlideUI();
   updateUndoRedoButtons();
@@ -679,6 +837,7 @@ async function handleShift(dx, dy) {
   slideState = applyShift(slideState, pieceDx, pieceDy);
   accumulatedShift.dx += pieceDx;
   accumulatedShift.dy += pieceDy;
+  playSlide();
 
   renderBoard();
   updateSlideUI();
@@ -704,6 +863,7 @@ async function handleRotate(direction) {
 
   slideState = applyRotation(slideState, direction);
   accumulatedRotation = (accumulatedRotation + (direction === 'cw' ? 1 : 7)) % 8;
+  playRotate();
 
   const migrations = buildRotationMigrations(direction, oldPositions);
   renderBoard(migrations);
@@ -776,11 +936,20 @@ async function doAIMove() {
 
 async function doClassicAIMove(aiPlayer) {
   // Classic mode: always play optimally (hard/minimax) regardless of difficulty setting
-  const move = getAIMove(board, aiPlayer, 'hard');
+  const vanish = isVanishMode();
+  const move = getAIMove(board, aiPlayer, 'hard', vanish, classicMoveOrder);
   if (move === null || move === undefined) { isAnimating = false; return; }
 
-  board = applyMove(board, move, aiPlayer);
-  moveHistory.push({ type: 'classic', index: move, player: aiPlayer });
+  let removedIndex = null;
+  if (vanish) {
+    const result = applyMoveVanish(board, move, aiPlayer, classicMoveOrder);
+    board = result.board;
+    classicMoveOrder = result.moveOrder;
+    removedIndex = result.removed;
+  } else {
+    board = applyMove(board, move, aiPlayer);
+  }
+  moveHistory.push({ type: 'classic', index: move, player: aiPlayer, removed: removedIndex });
   redoStack = [];
 
   checkEndConditions();
@@ -788,6 +957,8 @@ async function doClassicAIMove(aiPlayer) {
   isAnimating = false;
   renderBoard();
   animatePieceDrop(move);
+  playPlace();
+  if (removedIndex !== null) { animateGhostOut(removedIndex); playVanish(); }
   renderStatus();
   updateUndoRedoButtons();
 }
@@ -828,6 +999,7 @@ async function doSlideAIMove(aiPlayer) {
         totalDeg += stepDeg;
         // Animate each 45° step separately so the player can follow
         await animateBoardHuman(boardWrapperEl, `rotate(${totalDeg}deg)`, ANIM_DURATION_HUMAN);
+        playRotate();
         await sleep(150); // brief pause between steps
       }
     }
@@ -863,6 +1035,7 @@ async function doSlideAIMove(aiPlayer) {
         `translate(${visDx * px}px, ${visDy * px}px)`,
         ANIM_DURATION_HUMAN
       );
+      playSlide();
     }
 
     slideState = workingState;
@@ -915,9 +1088,17 @@ async function doSlideAIMove(aiPlayer) {
   transformedState = cloneSlideState(slideState);
 
   // Apply placement
-  const newState = applySlideMoveByIndex(slideState, placement, aiPlayer);
-  if (!newState) { isAnimating = false; return; }
-  slideState = newState;
+  let removedIndex = null;
+  if (isVanishMode()) {
+    const result = applySlideMoveByIndexVanish(slideState, placement, aiPlayer);
+    if (!result) { isAnimating = false; return; }
+    slideState = result.state;
+    removedIndex = result.removed;
+  } else {
+    const newState = applySlideMoveByIndex(slideState, placement, aiPlayer);
+    if (!newState) { isAnimating = false; return; }
+    slideState = newState;
+  }
 
   moveHistory.push({
     type: 'slide',
@@ -926,7 +1107,8 @@ async function doSlideAIMove(aiPlayer) {
     transformedState,
     index: placement,
     player: aiPlayer,
-    prevState: prevState
+    prevState: prevState,
+    removed: removedIndex
   });
   redoStack = [];
 
@@ -937,12 +1119,14 @@ async function doSlideAIMove(aiPlayer) {
 
   renderBoard();
   animatePieceDrop(placement);
+  playPlace();
+  if (removedIndex !== null) { animateGhostOut(removedIndex); playVanish(); }
   renderStatus();
   updateSlideUI();
   updateUndoRedoButtons();
 }
 
-// ── AI vs AI Loop ────────────────────────────────────────
+// ── AI vs AI Loop ────────────────────────────────────
 async function runAIvsAILoop() {
   while (!gameOver && aivaiRunning) {
     disableBoard();
@@ -976,17 +1160,41 @@ function checkEndConditions() {
     saveScore(score, settings.variant);
     renderScore();
     savedMoveHistory = moveHistory.map(m => ({ ...m }));
+    // Game-over sound + confetti
+    if (settings.mode === 'hvh' || settings.mode === 'aivai') {
+      playWin();
+      launchConfetti();
+    } else {
+      const humanIsX = settings.mode === 'hvai';
+      const humanPlayer = humanIsX ? 'X' : 'O';
+      if (result.winner === humanPlayer) { playWin(); launchConfetti(); } else playLose();
+    }
     return;
   }
 
-  const draw = isSlide() ? isSlideDraw(slideState) : isDraw(b);
-  if (draw) {
-    gameOver = true;
-    score.draws++;
-    saveScore(score, settings.variant);
-    renderScore();
-    savedMoveHistory = moveHistory.map(m => ({ ...m }));
-    return;
+  // In vanish mode the board never fills, so use a turn limit to detect draws
+  if (isVanishMode()) {
+    vanishTurnCount++;
+    if (vanishTurnCount >= MAX_VANISH_TURNS) {
+      gameOver = true;
+      score.draws++;
+      saveScore(score, settings.variant);
+      renderScore();
+      savedMoveHistory = moveHistory.map(m => ({ ...m }));
+      playDraw();
+      return;
+    }
+  } else {
+    const draw = isSlide() ? isSlideDraw(slideState) : isDraw(b);
+    if (draw) {
+      gameOver = true;
+      score.draws++;
+      saveScore(score, settings.variant);
+      renderScore();
+      savedMoveHistory = moveHistory.map(m => ({ ...m }));
+      playDraw();
+      return;
+    }
   }
 
   currentPlayer = nextPlayer(currentPlayer);
@@ -1017,14 +1225,22 @@ function undo() {
     redoStack.push(move);
 
     if (move.type === 'classic') {
-      // Rebuild board from scratch
+      // Rebuild board (and moveOrder in vanish mode) from scratch
       board = createBoard();
+      classicMoveOrder = [];
       for (const m of moveHistory) {
-        board = applyMove(board, m.index, m.player);
+        if (m.type !== 'classic') continue;
+        if (isVanishMode()) {
+          const r = applyMoveVanish(board, m.index, m.player, classicMoveOrder);
+          board = r.board;
+          classicMoveOrder = r.moveOrder;
+        } else {
+          board = applyMove(board, m.index, m.player);
+        }
       }
     } else {
       // Slide: restore prevState
-      slideState = move.prevState ? cloneSlideState(move.prevState) : createSlideState();
+      slideState = move.prevState ? cloneSlideState(move.prevState) : createSlideState(isVanishMode());
     }
   }
 
@@ -1040,6 +1256,7 @@ function undo() {
   accumulatedRotation = 0;
   preShiftState = null;
   visualRotationDeg = 0;
+  vanishTurnCount = moveHistory.length;
 
   boardWrapperEl.style.transition = '';
   boardWrapperEl.style.transform = '';
@@ -1061,11 +1278,22 @@ function redo() {
     moveHistory.push(move);
 
     if (move.type === 'classic') {
-      board = applyMove(board, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applyMoveVanish(board, move.index, move.player, classicMoveOrder);
+        board = r.board;
+        classicMoveOrder = r.moveOrder;
+      } else {
+        board = applyMove(board, move.index, move.player);
+      }
     } else {
       // Restore transformedState, apply placement
       slideState = cloneSlideState(move.transformedState);
-      slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applySlideMoveByIndexVanish(slideState, move.index, move.player);
+        if (r) slideState = r.state;
+      } else {
+        slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      }
     }
 
     // Check win/draw after each move
@@ -1185,15 +1413,27 @@ async function replayLastMove() {
 
   // Reconstruct board state BEFORE the moves we're replaying
   board = createBoard();
-  slideState = createSlideState();
+  slideState = createSlideState(isVanishMode());
+  classicMoveOrder = [];
   const replayStartIdx = moveHistory.length - movesToReplay.length;
   for (let i = 0; i < replayStartIdx; i++) {
     const m = moveHistory[i];
     if (m.type === 'classic') {
-      board = applyMove(board, m.index, m.player);
+      if (isVanishMode()) {
+        const r = applyMoveVanish(board, m.index, m.player, classicMoveOrder);
+        board = r.board;
+        classicMoveOrder = r.moveOrder;
+      } else {
+        board = applyMove(board, m.index, m.player);
+      }
     } else {
       if (m.transformedState) slideState = cloneSlideState(m.transformedState);
-      slideState = applySlideMoveByIndex(slideState, m.index, m.player);
+      if (isVanishMode()) {
+        const r = applySlideMoveByIndexVanish(slideState, m.index, m.player);
+        if (r) slideState = r.state;
+      } else {
+        slideState = applySlideMoveByIndex(slideState, m.index, m.player);
+      }
     }
   }
   winningLine = null;
@@ -1212,7 +1452,19 @@ async function replayLastMove() {
     if (!isReplaying) break;
 
     if (move.type === 'classic') {
-      board = applyMove(board, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applyMoveVanish(board, move.index, move.player, classicMoveOrder);
+        board = r.board;
+        classicMoveOrder = r.moveOrder;
+        if (r.removed !== null) {
+          renderBoard();
+          animateGhostOut(r.removed);
+          await sleep(300);
+          if (!isReplaying) break;
+        }
+      } else {
+        board = applyMove(board, move.index, move.player);
+      }
       renderBoard();
       animatePieceDrop(move.index);
       statusEl.textContent = `${move.player} places`;
@@ -1259,7 +1511,20 @@ async function replayLastMove() {
         slideState = cloneSlideState(move.transformedState);
       }
 
-      slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applySlideMoveByIndexVanish(slideState, move.index, move.player);
+        if (r) {
+          slideState = r.state;
+          if (r.removed !== null) {
+            renderBoard();
+            animateGhostOut(r.removed);
+            await sleep(300);
+            if (!isReplaying) break;
+          }
+        }
+      } else {
+        slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      }
       renderBoard();
       animatePieceDrop(move.index);
       statusEl.textContent = `${move.player} places`;
@@ -1293,7 +1558,8 @@ function startReplay() {
 
   // Reset to empty state
   board = createBoard();
-  slideState = createSlideState();
+  slideState = createSlideState(isVanishMode());
+  classicMoveOrder = [];
   winningLine = null;
   visualRotationDeg = 0;
 
@@ -1317,7 +1583,19 @@ async function replayAsync() {
     if (!isReplaying) return;
 
     if (move.type === 'classic') {
-      board = applyMove(board, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applyMoveVanish(board, move.index, move.player, classicMoveOrder);
+        board = r.board;
+        classicMoveOrder = r.moveOrder;
+        if (r.removed !== null) {
+          renderBoard();
+          animateGhostOut(r.removed);
+          await sleep(300);
+          if (!isReplaying) return;
+        }
+      } else {
+        board = applyMove(board, move.index, move.player);
+      }
 
       const w = getWinner(board);
       if (w) winningLine = w.line;
@@ -1398,7 +1676,20 @@ async function replayAsync() {
       }
 
       // 4. Placement
-      slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applySlideMoveByIndexVanish(slideState, move.index, move.player);
+        if (r) {
+          slideState = r.state;
+          if (r.removed !== null) {
+            renderBoard();
+            animateGhostOut(r.removed);
+            await sleep(300);
+            if (!isReplaying) return;
+          }
+        }
+      } else {
+        slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      }
 
       const w = getSlideWinner(slideState);
       if (w) winningLine = w.line;
@@ -1420,17 +1711,29 @@ function finishReplay() {
 
   // Rebuild final state from savedMoveHistory
   board = createBoard();
-  slideState = createSlideState();
+  slideState = createSlideState(isVanishMode());
+  classicMoveOrder = [];
   winningLine = null;
 
   for (const move of savedMoveHistory) {
     if (move.type === 'classic') {
-      board = applyMove(board, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applyMoveVanish(board, move.index, move.player, classicMoveOrder);
+        board = r.board;
+        classicMoveOrder = r.moveOrder;
+      } else {
+        board = applyMove(board, move.index, move.player);
+      }
     } else {
       if (move.transformedState) {
         slideState = cloneSlideState(move.transformedState);
       }
-      slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      if (isVanishMode()) {
+        const r = applySlideMoveByIndexVanish(slideState, move.index, move.player);
+        if (r) slideState = r.state;
+      } else {
+        slideState = applySlideMoveByIndex(slideState, move.index, move.player);
+      }
     }
   }
 
@@ -1540,7 +1843,8 @@ async function showHint() {
 
   } else {
     // Classic mode
-    const hintIndex = getAIMove(board, currentPlayer, 'hard');
+    const vanish = isVanishMode();
+    const hintIndex = getAIMove(board, currentPlayer, 'hard', vanish, classicMoveOrder);
     if (hintIndex === null || hintIndex === undefined) { clearHintPanel(); return; }
 
     steps.push({
@@ -1685,10 +1989,16 @@ function renderStatus() {
       shiftExtrasEl.classList.add('hidden');
     }
   } else {
-    statusEl.textContent = isAIvsAI()
-      ? `\u{1F441} AI vs AI \u2014 ${currentPlayer} thinking\u2026`
-      : `${currentPlayer}'s turn`;
-    statusEl.className = 'status';
+    if (isAIvsAI()) {
+      statusEl.innerHTML = `\u{1F441} AI vs AI &mdash; ${currentPlayer} <span class="thinking-dots">thinking</span>`;
+      statusEl.className = 'status status-thinking';
+    } else if (isAITurn()) {
+      statusEl.innerHTML = `<span class="thinking-dots">\u{1F914} ${currentPlayer} is thinking</span>`;
+      statusEl.className = 'status status-thinking';
+    } else {
+      statusEl.textContent = `${currentPlayer}'s turn`;
+      statusEl.className = 'status';
+    }
     resultEl.classList.add('hidden');
   }
 }

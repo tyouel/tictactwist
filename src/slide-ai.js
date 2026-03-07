@@ -2,13 +2,13 @@
 // slide-ai.js — AI for TicTacSlide variant
 // ============================================================
 
-import { nextPlayer } from './game.js?v=36medfix';
+import { nextPlayer } from './game.js?v=49sounds';
 import {
   cloneSlideState, piecesToBoard, getValidShifts, applyShift,
   applySlideMoveByIndex, getValidPlacements, getSlideWinner, isSlideDraw,
   applyRotation
-} from './slide-game.js?v=36medfix';
-import { WINNING_LINES } from './game.js?v=36medfix';
+} from './slide-game.js?v=49sounds';
+import { WINNING_LINES } from './game.js?v=49sounds';
 
 /**
  * Evaluate a board position for the AI player.
@@ -73,8 +73,8 @@ function evaluateWithVulnerability(state, aiPlayer) {
     if (rotScore < worstAfterRotation) worstAfterRotation = rotScore;
   }
 
-  // Blend: 75% current position, 25% rotation vulnerability
-  return baseScore * 0.75 + worstAfterRotation * 0.25;
+  // Blend: 85% current position, 15% rotation vulnerability
+  return baseScore * 0.85 + worstAfterRotation * 0.15;
 }
 
 /**
@@ -293,7 +293,9 @@ export function getSlideAIMove(state, aiPlayer, difficulty = 'hard') {
 
   // No opening book for pieceCount === 1 — let transforms be considered
 
-  const maxDepth = 9 - pieceCount;
+  // During vanishing phase (6 pieces, BF=3, no transforms) we can search deeply;
+  // pre-vanish uses the standard formula.
+  const maxDepth = (state.vanish && pieceCount >= 6) ? 4 : (9 - pieceCount);
 
   const transforms = getTransformations(state, true);
 

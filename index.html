@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>TicTacTwist</title>
-  <link rel="stylesheet" href="src/styles.css?v=36medfix" />
+  <link rel="stylesheet" href="src/styles.css?v=49sounds" />
 </head>
 <body>
   <div class="app">
@@ -117,6 +117,11 @@
           </select>
         </div>
 
+        <div class="setting-group" style="display:flex; align-items:center; gap:0.5rem;">
+          <label for="sound-toggle" style="cursor:pointer; user-select:none;">🔊 Sound</label>
+          <input type="checkbox" id="sound-toggle" checked />
+        </div>
+
       </div>
 
       <div class="controls" style="margin-top: 0.75rem;">
@@ -144,26 +149,36 @@
 
       <div class="modal-section">
         <h3>Classic Mode</h3>
-        <p>Good ol' tic-tac-toe — three in a row wins. Simple. Timeless. You know the drill.</p>
+        <p>Good ol' tic-tac-toe — three in a row wins. Simple. Timeless. <em>But don't get too comfortable.</em> On Expert difficulty, even Classic has a twist — check out <strong>Vanishing Pieces</strong> below!</p>
       </div>
 
       <div class="modal-section">
         <h3>⚡ TicTacTwist Mode</h3>
-        <p>This is where things get <em>wild</em>. Before you place your mark, you can <strong>twist the whole board</strong>!</p>
+        <p>This is where things get <em>really fun</em>. Before you place your mark, you can <strong>twist the whole board</strong>!</p>
         <ul class="modal-moves">
           <li><span class="modal-icon modal-icon-rotate">↻ ↺</span> <strong>Rotate</strong> the board 45° left or right</li>
           <li><span class="modal-icon modal-icon-shift">↑ ↓ ← →</span> <strong>Slide</strong> the entire board in any direction</li>
           <li><span class="modal-icon modal-icon-place">✕ ○</span> Then <strong>place</strong> your mark</li>
         </ul>
-        <p class="modal-callout">🧠 Transforms are available on moves 2–5 only — use them wisely!</p>
+        <p class="modal-callout">🧠 Transforms are available on moves 2–4 only — use them wisely!</p>
       </div>
 
       <div class="modal-section">
         <h3>🎯 AI Difficulty</h3>
         <ul class="modal-tips">
           <li><strong>Easy</strong> — the AI plays smart but never rotates or slides the board</li>
-          <li><strong>Medium</strong> — the AI can use a single rotation (45°) or a single slide per turn</li>
-          <li><strong>Expert</strong> — the AI uses multiple rotations, slides, and combos to outsmart you</li>
+          <li><strong>Medium</strong> — the AI can use one transform per turn: a single 45° rotation <em>or</em> a single slide</li>
+          <li><strong>Expert</strong> — the AI chains multiple rotations, slides, and combos to outsmart you</li>
+        </ul>
+      </div>
+
+      <div class="modal-section">
+        <h3>👻 Vanishing Pieces <span style="font-weight:normal; font-size:0.85em;">(Expert only)</span></h3>
+        <p>Each player can only have <strong>3 pieces</strong> on the board at a time. When you place a 4th, your <strong>oldest piece vanishes</strong>!</p>
+        <ul class="modal-tips">
+          <li>Your oldest piece <strong>blinks</strong> to warn you it's next to go</li>
+          <li>Plan ahead — the board is always shifting beneath you</li>
+          <li>There's no "safe" lead when pieces keep disappearing!</li>
         </ul>
       </div>
 
@@ -171,7 +186,7 @@
         <h3>💡 Pro Tips</h3>
         <ul class="modal-tips">
           <li>Hit <kbd>H</kbd> anytime for a <strong>Hint</strong> — the AI will show you its best move</li>
-          <li>Stack multiple rotations and shifts before placing</li>
+          <li>Stack multiple rotations and shifts before placing (moves 2–4)</li>
           <li>Watch out — your opponent can twist the board too!</li>
         </ul>
       </div>
@@ -186,6 +201,6 @@
     </div>
   </div>
 
-  <script type="module" src="src/main.js?v=36medfix"></script>
+  <script type="module" src="src/main.js?v=49sounds"></script>
 </body>
 </html>

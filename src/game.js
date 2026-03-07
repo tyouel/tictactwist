@@ -31,6 +31,7 @@ export function getWinner(board) {
 
 /**
  * Check for a draw (board full, no winner).
+ * In vanishing mode, the board never fills — draws only via repetition (handled in UI).
  */
 export function isDraw(board) {
   return !getWinner(board) && board.every(cell => cell !== null);
@@ -45,6 +46,43 @@ export function applyMove(board, index, player) {
   const newBoard = [...board];
   newBoard[index] = player;
   return newBoard;
+}
+
+/**
+ * Maximum pieces per player in vanishing-pieces mode (Expert).
+ */
+export const MAX_PIECES_PER_PLAYER = 3;
+
+/**
+ * Apply a move with the vanishing-pieces rule.
+ * moveOrder is an array of { index, player } in placement order.
+ * If the player already has MAX_PIECES_PER_PLAYER pieces on the board,
+ * the oldest piece is removed before (logically after) placement.
+ * @returns {{ board, moveOrder, removed: number|null }} or null if invalid.
+ */
+export function applyMoveVanish(board, index, player, moveOrder) {
+  if (index < 0 || index > 8 || board[index] !== null) return null;
+  const newBoard = [...board];
+  newBoard[index] = player;
+  const newOrder = [...moveOrder, { index, player }];
+
+  // Count this player's pieces (including the one just placed)
+  const playerMoves = newOrder.filter(m => m.player === player);
+  let removed = null;
+
+  if (playerMoves.length > MAX_PIECES_PER_PLAYER) {
+    // Remove the oldest piece of this player
+    const oldest = playerMoves[0];
+    newBoard[oldest.index] = null;
+    removed = oldest.index;
+    // Remove from order tracking
+    const oldestGlobalIdx = newOrder.findIndex(
+      m => m.index === oldest.index && m.player === oldest.player
+    );
+    newOrder.splice(oldestGlobalIdx, 1);
+  }
+
+  return { board: newBoard, moveOrder: newOrder, removed };
 }
 
 /**

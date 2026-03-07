@@ -2,8 +2,8 @@
 // storage.js — localStorage persistence
 // ============================================================
 
-const SETTINGS_KEY = 'tictacted_settings';
-const SCORE_KEY_PREFIX = 'tictacted_score_';
+const SETTINGS_KEY = 'tictactwist_settings';
+const SCORE_KEY_PREFIX = 'tictactwist_score_';
 const SETTINGS_VERSION = 5; // bump to reset saved settings to new defaults
 
 const DEFAULT_SETTINGS = {

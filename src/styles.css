@@ -107,6 +107,41 @@ h1 {
   color: #94A3B8;
 }
 
+.status-thinking {
+  color: #60A5FA;
+  animation: thinkingBlink 1s ease-in-out infinite;
+}
+
+@keyframes thinkingBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+.thinking-dots::after {
+  content: '';
+  animation: thinkingDots 1.4s steps(4, end) infinite;
+}
+
+@keyframes thinkingDots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+
+/* ── Confetti Canvas ─────────────────────────────────────── */
+
+#confetti-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+}
+
 /* ── Phase Indicator ─────────────────────────────────────── */
 
 .phase-indicator {
@@ -275,6 +310,12 @@ h1 {
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
+@keyframes piece-ghost-out {
+  0%   { transform: scale(1); opacity: 1; }
+  40%  { transform: scale(1.15); opacity: 0.7; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
 @keyframes piece-migrate {
   0%   { transform: translate(var(--migrate-x, 0px), var(--migrate-y, 0px)); }
   100% { transform: translate(0, 0); }
@@ -303,6 +344,11 @@ h1 {
   animation: piece-migrate 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.piece-marker.piece-ghost {
+  animation: piece-ghost-out 500ms ease-in both;
+  pointer-events: none;
+}
+
 /* ── Piece Markers ───────────────────────────────────────── */
 
 .piece-marker {
@@ -322,6 +368,15 @@ h1 {
 .piece-win {
   filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.7));
   animation: pulseWin 400ms ease-in-out infinite alternate;
+}
+
+.piece-oldest {
+  animation: pulseOldest 1.4s ease-in-out infinite;
+}
+
+@keyframes pulseOldest {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
 }
 
 /* ── Shift Controls ──────────────────────────────────────── */
@@ -351,7 +406,7 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  transition: background 0.15s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -359,7 +414,6 @@ h1 {
 .shift-btn:hover:not(:disabled) {
   background: #334155;
   border-color: #3B82F6;
-  transform: scale(1.1);
 }
 
 .shift-btn:disabled {
@@ -368,12 +422,12 @@ h1 {
 }
 
 .shift-pos-tl { top: 0; left: 0; }
-.shift-pos-t  { top: 0; left: 50%; transform: translateX(-50%); }
+.shift-pos-t  { top: 0; left: 50%; margin-left: calc(-0.5 * var(--arrow-size, 42px)); }
 .shift-pos-tr { top: 0; right: 0; }
-.shift-pos-l  { top: 50%; left: 0; transform: translateY(-50%); }
-.shift-pos-r  { top: 50%; right: 0; transform: translateY(-50%); }
+.shift-pos-l  { top: 50%; left: 0; margin-top: calc(-0.5 * var(--arrow-size, 42px)); }
+.shift-pos-r  { top: 50%; right: 0; margin-top: calc(-0.5 * var(--arrow-size, 42px)); }
 .shift-pos-bl { bottom: 46px; left: 0; }
-.shift-pos-b  { bottom: 46px; left: 50%; transform: translateX(-50%); }
+.shift-pos-b  { bottom: 46px; left: 50%; margin-left: calc(-0.5 * var(--arrow-size, 42px)); }
 .shift-pos-br { bottom: 46px; right: 0; }
 
 /* ── Rotate Buttons ──────────────────────────────────────── */
@@ -388,7 +442,7 @@ h1 {
   font-size: 0.8rem;
   padding: 0.3rem 0.7rem;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  transition: background 0.15s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -396,7 +450,6 @@ h1 {
 .btn-rotate:hover:not(:disabled) {
   background: #2D1B69;
   border-color: #A855F7;
-  transform: scale(1.05);
 }
 
 .btn-rotate:disabled {
